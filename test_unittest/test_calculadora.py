@@ -48,7 +48,7 @@ class TestValidador(FakerTestCase):
     def test_precio_cero_lanza_excepcion(self):
         """R1: Un precio igual a cero debe lanzar PrecioInvalidoError."""
         with self.assertRaises(PrecioInvalidoError):
-            Validador.validar_precio(self.faker.pyfloat(min_value=0.0, max_value=0.0))
+            Validador.validar_precio(0.0) # Usamos el valor exacto
 
     def test_precio_negativo_lanza_excepcion(self):
         """R1: Un precio negativo debe lanzar PrecioInvalidoError."""
@@ -66,14 +66,14 @@ class TestValidador(FakerTestCase):
     def test_descuento_cero_es_valido(self):
         """R2: Un descuento de 0% es válido (sin descuento)."""
         try:
-            Validador.validar_descuento(self.faker.pyfloat(min_value=0.0, max_value=0.0))
+            Validador.validar_descuento(0.0) # Usamos el valor exacto
         except DescuentoInvalidoError:
             self.fail("validar_descuento lanzó excepción con descuento 0.")
 
     def test_descuento_cien_es_valido(self):
         """R2: Un descuento de 100% es válido (gratis)."""
         try:
-            Validador.validar_descuento(self.faker.pyfloat(min_value=100.0, max_value=100.0))
+            Validador.validar_descuento(100.0) # Usamos el valor exacto
         except DescuentoInvalidoError:
             self.fail("validar_descuento lanzó excepción con descuento 100.")
 
@@ -232,7 +232,7 @@ class TestCalculadoraDescuento(FakerTestCase):
     # --- R1: Precio inválido ---
     def test_precio_cero_lanza_excepcion(self):
         with self.assertRaises(PrecioInvalidoError):
-            self.calc.calcular(self.faker.pyfloat(min_value=0.0, max_value=0.0), 10)
+            self.calc.calcular(0.0, 10) # Usamos el valor exacto
 
     def test_precio_negativo_lanza_excepcion(self):
         with self.assertRaises(PrecioInvalidoError):

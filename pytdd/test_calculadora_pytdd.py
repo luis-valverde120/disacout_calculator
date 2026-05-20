@@ -53,7 +53,7 @@ class TestValidador:
     def test_validar_precio_cero_lanza_excepcion(self, faker_seeded):
         """Precio de cero debe lanzar PrecioInvalidoError."""
         with pytest.raises(PrecioInvalidoError):
-            Validador.validar_precio(faker_seeded.pyfloat(min_value=0.0, max_value=0.0))
+            Validador.validar_precio(0.0) # CORREGIDO: Valor directo en lugar de Faker
     
     def test_validar_precio_negativo_lanza_excepcion(self, faker_seeded):
         """Precio negativo debe lanzar PrecioInvalidoError."""
@@ -214,7 +214,7 @@ class TestCalculadoraDescuento:
         """Precio de cero debe lanzar excepción."""
         calc = CalculadoraDescuento()
         with pytest.raises(PrecioInvalidoError):
-            calc.calcular(precio=faker_seeded.pyfloat(min_value=0.0, max_value=0.0), descuento_base=10.0)
+            calc.calcular(precio=0.0, descuento_base=10.0) # CORREGIDO: Valor directo en lugar de Faker
     
     def test_descuento_fuera_rango_lanza_excepcion(self, faker_seeded):
         """Descuento fuera de 0-100 debe lanzar excepción."""
@@ -374,7 +374,8 @@ class TestCalculadoraDescuento:
         assert resultado["ahorro_volumen"] > 0
         assert resultado["ahorro_fidelidad"] > 0
         assert resultado["ahorro_cupon"] > 0
-        assert resultado["precio_final"] < 100.0
+        # CORREGIDO: Se compara contra el subtotal acumulado de los 10 artículos, no contra $100 fijo
+        assert resultado["precio_final"] < resultado["subtotal"]
 
 
 class TestFuncionCalcularPrecioFinal:
@@ -390,7 +391,7 @@ class TestFuncionCalcularPrecioFinal:
     def test_calcular_precio_final_precio_invalido(self, faker_seeded):
         """Debe lanzar ValueError para precio inválido."""
         with pytest.raises(ValueError):
-            calcular_precio_final(faker_seeded.pyfloat(min_value=0.0, max_value=0.0), 10.0)
+            calcular_precio_final(0.0, 10.0) # CORREGIDO: Valor directo en lugar de Faker
     
     def test_calcular_precio_final_descuento_invalido(self, faker_seeded):
         """Debe lanzar ValueError para descuento inválido."""

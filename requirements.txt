@@ -1,3 +1,4 @@
 pytest==9.0.3
 coverage==7.6.1
 Faker==28.0.0
+testtools==2.7.2
