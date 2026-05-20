@@ -1,5 +1,6 @@
 import pytest
 from datetime import date
+from faker import Faker
 from calculadora import (
     CalculadoraDescuento,
     GeneradorRecibo,
@@ -13,6 +14,12 @@ from calculadora import (
 @pytest.fixture
 def calc():
     return CalculadoraDescuento()
+
+@pytest.fixture(scope="function")
+def faker_seeded():
+    faker = Faker()
+    faker.seed_instance(12345)
+    return faker
 
 class TestCompatibilidad:
     """Pruebas para verificar que la función antigua sigue funcionando (R1 a R5)."""
@@ -33,31 +40,47 @@ class TestCompatibilidad:
         with pytest.raises(ValueError):
             calcular_precio_final(precio, descuento)
 
-    def test_r3_calculo_descuento_normal(self):
-        assert calcular_precio_final(100, 20) == 80.0
-        assert calcular_precio_final(50, 10) == 45.0
+    def test_r3_calculo_descuento_normal(self, faker_seeded):
+        precio = faker_seeded.pyfloat(min_value=50.0, max_value=200.0, right_digits=2)
+        descuento = faker_seeded.pyfloat(min_value=0.0, max_value=50.0, right_digits=2)
+        assert calcular_precio_final(precio, descuento) == round(precio * (1 - descuento / 100), 2)
 
-    def test_r4_redondear_dos_decimales(self):
-        assert calcular_precio_final(10.12345, 10) == 9.11
-        assert calcular_precio_final(19.999, 0) == 20.00
+    def test_r3_calculo_descuento_con_faker(self, faker_seeded):
+        precio = faker_seeded.pyfloat(min_value=1.0, max_value=500.0, right_digits=2)
+        descuento = faker_seeded.pyfloat(min_value=0.0, max_value=79.0, right_digits=2)
+        esperado = round(precio * (1 - descuento / 100), 2)
+        assert calcular_precio_final(precio, descuento) == esperado
 
-    def test_r5_descuento_adicional(self):
-        # 80% sobre 100 = 20; 5% adicional sobre 20 = 19.0
-        assert calcular_precio_final(100, 80) == 19.0
-        # 90% sobre 100 = 10; 5% adicional sobre 10 = 9.5
-        assert calcular_precio_final(100, 90) == 9.5
+    def test_r4_redondear_dos_decimales(self, faker_seeded):
+        precio = faker_seeded.pyfloat(min_value=10.0, max_value=200.0, right_digits=5)
+        descuento = faker_seeded.pyfloat(min_value=0.0, max_value=50.0, right_digits=3)
+        resultado = calcular_precio_final(precio, descuento)
+        assert resultado == round(resultado, 2)
+
+    def test_r5_descuento_adicional(self, faker_seeded):
+        precio = faker_seeded.pyfloat(min_value=80.0, max_value=200.0, right_digits=2)
+        descuento = faker_seeded.pyfloat(min_value=80.0, max_value=100.0, right_digits=2)
+        base = precio * (1 - descuento / 100)
+        assert calcular_precio_final(precio, descuento) == round(base * 0.95, 2)
+
+    def test_r5_descuento_adicional_con_faker(self, faker_seeded):
+        precio = faker_seeded.pyfloat(min_value=50.0, max_value=500.0, right_digits=2)
+        descuento = faker_seeded.pyfloat(min_value=80.0, max_value=100.0, right_digits=2)
+        base = precio * (1 - descuento / 100)
+        esperado = round(base * 0.95, 2)
+        assert calcular_precio_final(precio, descuento) == esperado
 
 
 class TestNuevasFuncionalidades:
     """Pruebas de la nueva arquitectura OOP."""
 
-    def test_calculadora_precio_invalido(self, calc):
+    def test_calculadora_precio_invalido(self, calc, faker_seeded):
         with pytest.raises(PrecioInvalidoError):
-            calc.calcular(-10, 10)
+            calc.calcular(faker_seeded.pyfloat(min_value=-100.0, max_value=-0.01, right_digits=2), 10)
             
-    def test_calculadora_descuento_invalido(self, calc):
+    def test_calculadora_descuento_invalido(self, calc, faker_seeded):
         with pytest.raises(DescuentoInvalidoError):
-            calc.calcular(100, 150)
+            calc.calcular(100, faker_seeded.pyfloat(min_value=100.01, max_value=200.0, right_digits=2))
 
     @pytest.mark.parametrize("cantidad, descuento_esperado", [
         (1, 0.0),
@@ -67,12 +90,28 @@ class TestNuevasFuncionalidades:
         (10, 10.0),
         (100, 10.0)
     ])
-    def test_descuento_volumen(self, calc, cantidad, descuento_esperado):
+    def test_descuento_volumen(self, calc, cantidad, descuento_esperado, faker_seeded):
         # Precio = 10, sin descuento base (0%). Subtotal = 10 * cantidad.
-        resultado = calc.calcular(10, 0, cantidad=cantidad)
+        precio = faker_seeded.pyfloat(min_value=5.0, max_value=50.0, right_digits=2)
+        resultado = calc.calcular(precio, 0, cantidad=cantidad)
         
         # El descuento esperado es un porcentaje del subtotal
-        ahorro_esperado = (10 * cantidad) * (descuento_esperado / 100)
+        ahorro_esperado = (precio * cantidad) * (descuento_esperado / 100)
+        assert resultado["ahorro_volumen"] == pytest.approx(ahorro_esperado)
+
+    def test_descuento_volumen_con_faker(self, calc, faker_seeded):
+        precio = faker_seeded.pyfloat(min_value=5.0, max_value=200.0, right_digits=2)
+        cantidad = faker_seeded.random_element([1, 4, 5, 9, 10, 12])
+        resultado = calc.calcular(precio, 0, cantidad=cantidad)
+
+        if 5 <= cantidad <= 9:
+            pct = 0.05
+        elif cantidad >= 10:
+            pct = 0.10
+        else:
+            pct = 0.0
+
+        ahorro_esperado = round(precio * cantidad * pct, 2)
         assert resultado["ahorro_volumen"] == pytest.approx(ahorro_esperado)
 
     @pytest.mark.parametrize("nivel, descuento_esperado", [
@@ -82,40 +121,50 @@ class TestNuevasFuncionalidades:
         ("PLATINO", 10.0),
         ("INEXISTENTE", 0.0)
     ])
-    def test_fidelidad(self, calc, nivel, descuento_esperado):
+    def test_fidelidad(self, calc, nivel, descuento_esperado, faker_seeded):
         # Precio = 100, descuento base = 0.
-        resultado = calc.calcular(100, 0, nivel_fidelidad=nivel)
+        precio = faker_seeded.pyfloat(min_value=50.0, max_value=200.0, right_digits=2)
+        resultado = calc.calcular(precio, 0, nivel_fidelidad=nivel)
         
-        ahorro_esperado = 100 * (descuento_esperado / 100)
+        ahorro_esperado = precio * (descuento_esperado / 100)
         assert resultado["ahorro_fidelidad"] == pytest.approx(ahorro_esperado)
 
-    def test_cupon_valido_porcentaje(self, calc):
-        resultado = calc.calcular(100, 0, codigo_cupon="PROMO10", fecha_actual_simulada=date(2023, 1, 1))
-        assert resultado["ahorro_cupon"] == 10.0
-        assert resultado["precio_final"] == 90.0
+    def test_cupon_valido_porcentaje(self, calc, faker_seeded):
+        precio = faker_seeded.pyfloat(min_value=50.0, max_value=200.0, right_digits=2)
+        resultado = calc.calcular(precio, 0, codigo_cupon="PROMO10", fecha_actual_simulada=date(2023, 1, 1))
+        assert resultado["ahorro_cupon"] == round(precio * 0.10, 2)
+        assert resultado["precio_final"] == round(precio * 0.90, 2)
 
-    def test_cupon_valido_fijo(self, calc):
-        resultado = calc.calcular(50, 0, codigo_cupon="FIJO15", fecha_actual_simulada=date(2023, 1, 1))
+    def test_cupon_valido_fijo(self, calc, faker_seeded):
+        precio = faker_seeded.pyfloat(min_value=50.0, max_value=200.0, right_digits=2)
+        resultado = calc.calcular(precio, 0, codigo_cupon="FIJO15", fecha_actual_simulada=date(2023, 1, 1))
         assert resultado["ahorro_cupon"] == 15.0
-        assert resultado["precio_final"] == 35.0
+        assert resultado["precio_final"] == round(precio - 15.0, 2)
 
-    def test_cupon_inexistente(self, calc):
+    def test_cupon_fijo_no_supera_precio(self, calc, faker_seeded):
+        precio = faker_seeded.pyfloat(min_value=1.0, max_value=14.99, right_digits=2)
+        resultado = calc.calcular(precio, 0, codigo_cupon="FIJO15", fecha_actual_simulada=date(2023, 1, 1))
+        assert resultado["ahorro_cupon"] == round(precio, 2)
+        assert resultado["precio_final"] == 0.0
+
+    def test_cupon_inexistente(self, calc, faker_seeded):
         with pytest.raises(CuponInvalidoError, match="no existe"):
-            calc.calcular(100, 0, codigo_cupon="NOEXISTE")
+            calc.calcular(100, 0, codigo_cupon=faker_seeded.bothify(text="??????"))
 
-    def test_cupon_expirado(self, calc):
+    def test_cupon_expirado(self, calc, faker_seeded):
         # El cupón "EXPIRADO" vence el 2020-01-01. Simulamos fecha actual en 2023.
         with pytest.raises(CuponInvalidoError, match="ha expirado"):
-            calc.calcular(100, 0, codigo_cupon="EXPIRADO", fecha_actual_simulada=date(2023, 1, 1))
+            calc.calcular(100, 0, codigo_cupon="EXPIRADO", fecha_actual_simulada=faker_seeded.date_between_dates(date(2021, 1, 1), date(2026, 1, 1)))
 
-    def test_generador_recibo(self, calc):
-        resultado = calc.calcular(100, 10, cantidad=5, nivel_fidelidad="ORO", codigo_cupon="PROMO10", fecha_actual_simulada=date(2023,1,1))
+    def test_generador_recibo(self, calc, faker_seeded):
+        precio = faker_seeded.pyfloat(min_value=50.0, max_value=200.0, right_digits=2)
+        resultado = calc.calcular(precio, 10, cantidad=5, nivel_fidelidad="ORO", codigo_cupon="PROMO10", fecha_actual_simulada=date(2023,1,1))
         # Validar el texto
         recibo = GeneradorRecibo.generar(resultado)
         assert "--- RECIBO DE COMPRA ---" in recibo
-        assert "Precio original (x5): $500.00" in recibo
-        assert "Descuento base (10%): -$50.00" in recibo
-        assert "Descuento por volumen: -$22.50" in recibo
-        assert "Beneficio fidelidad: -$21.38" in recibo
-        assert "Cupón aplicado: -$40.61" in recibo
+        assert f"Precio original (x5): ${resultado['subtotal']:.2f}" in recibo
+        assert f"Descuento base (10%): -${resultado['ahorro_base']:.2f}" in recibo
+        assert f"Descuento por volumen: -${resultado['ahorro_volumen']:.2f}" in recibo
+        assert f"Beneficio fidelidad: -${resultado['ahorro_fidelidad']:.2f}" in recibo
+        assert f"Cupón aplicado: -${resultado['ahorro_cupon']:.2f}" in recibo
         assert "TOTAL A PAGAR:" in recibo

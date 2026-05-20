@@ -47,3 +47,18 @@ docker build -t calculadora-tdd.
 docker run --rm calculadora-tdd pytest
 ```
 
+## Analisis de Cobertura
+
+Para obtener el reporte de cobertura usando `coverage.py`, ejecuta:
+
+```bash
+coverage run -m pytest
+coverage report -m
+```
+
+Si quieres un reporte HTML:
+
+```bash
+coverage html
+```
+
